@@ -104,8 +104,7 @@ static int isolate_process(void *arguments) {
 			pid_namespace(info);
 		}
 
-
-		if (execvp(info->argv[0], info->argv) == -1){
+        	if (execvp(info->argv[0], info->argv) == -1){
 			printf("Exec error\n");
 			free(info);
 			exit(-1);
