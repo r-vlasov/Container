@@ -1,6 +1,9 @@
 #ifndef _CONTAINER_H
 #define _CONTAINER_H
 
+
+#include "container.h"
+
 typedef struct namespaces{
 	int mnt ;
 	int pid ;
@@ -24,4 +27,7 @@ typedef struct isolproc_info{
 	namespace_info  nspace;
 } isolproc_info;
 
+
+
+int cgroup_namespace(isolproc_info *config);
 #endif

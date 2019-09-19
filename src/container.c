@@ -15,7 +15,7 @@
 #include "include/namespace.h"
 
 
-#define STACK_SIZE 4096
+#define STACK_SIZE 4096*4
 
 static char child_stack[STACK_SIZE];
 
@@ -81,7 +81,8 @@ static int isolate_process(void *arguments) {
 
 	pid_t root_pid = fork();
 	if (root_pid == 0) {	
-		
+
+
 		// set uts_namespace
 		if (info->nspace.uts) {
 			if (!get_new_hostname(info->hostname, 15)) {
@@ -104,7 +105,9 @@ static int isolate_process(void *arguments) {
 			pid_namespace(info);
 		}
 
-        	if (execvp(info->argv[0], info->argv) == -1){
+                cgroup_namespace(info); 
+                
+                if (execvp(info->argv[0], info->argv) == -1){
 			printf("Exec error\n");
 			free(info);
 			exit(-1);
@@ -120,20 +123,14 @@ int main(int argc, char** argv)
 	isolproc_info* _info = initial_info(argc, argv);
 	open_pipe(_info);
 
-	int _clone_flags = SIGCHLD | set_cloneflags(&(_info->nspace));
+	int _clone_flags = SIGCHLD | CLONE_NEWCGROUP |  set_cloneflags(&(_info->nspace));
 
     	pid_t isolproc_id = clone(&isolate_process, (void *) child_stack+STACK_SIZE, _clone_flags, (void*)_info);
     	if(isolproc_id == -1) {
         	printf("Clone error, stop\n");
         	return 0;
     	} else {
-		_info->pid = isolproc_id;
-		
-		// set user_namespace		
-		if (_info->nspace.usr) {
-			user_namespace(_info);
-		}
-
+		_info->pid = isolproc_id;		
 		// control by pipe
 		sinch_pipe_in(_info);
 		int status;

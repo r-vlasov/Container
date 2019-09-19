@@ -51,13 +51,24 @@ int user_namespace(isolproc_info* _info){
 	return 0;
 }
 
+
+const char put_old[] = ".put_old";
+
+
 // mounting the new root (CLONE_NEWNS allows child to start in a new mount namespace)
 int mount_namespace(isolproc_info* _info){
 
 
 	const char* mnt = _info->root;
+        
+        fprintf(stderr, "=> remounting everything with MS_PRIVATE...");
+        if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL)) {
+                fprintf(stderr, "failed! %m\n");
+                exit(-1);
+        }
+        fprintf(stderr, "remounted.\n");
 
-	if (mount(_info->root, mnt, "ext4", MS_BIND, "")) {
+	if (mount(_info->root, mnt, NULL, MS_BIND, "")) {
 		fprintf(stderr, "Failed to mount %s at %s: %m, stop\n", _info->root, mnt);
 		exit(-1);
 	}
@@ -65,8 +76,6 @@ int mount_namespace(isolproc_info* _info){
 		fprintf(stderr, "Failed to chdir to rootfs mounted at %s : %m, stop\n", mnt);
 		exit(-1);
 	}
-
-	const char *put_old = ".put_old";
 
 	if (mkdir(put_old, 0777) && errno != EEXIST) {
 		fprintf(stderr, "Failed to mkdir put_old %s: %m, stop\n", put_old);
@@ -85,7 +94,7 @@ int mount_namespace(isolproc_info* _info){
 	
 	if (!_info->nspace.pid) {
 		if (umount2(put_old, MNT_DETACH)) {
-			fprintf(stderr, "Failed to umount pud.old %s: %m, stop\n", put_old);
+			fprintf(stderr, "Failed to umount put.old %s: %m, stop\n", put_old);
 			exit(-1);
 		}
 	}
@@ -99,10 +108,34 @@ int pid_namespace(isolproc_info* _info) {
 		fprintf(stderr, "Failed to make /proc directory, stop\n");
 		exit(-1);
 	}
-	
+
+             
 	if (mount("proc", "./proc", "proc", 0, "")) {
 		fprintf(stderr, "Failed to mount proc, stop\n");
 		exit(-1);
 	}
+ 
+ 	if (mount("sysfs", "./sys", "sysfs", 0, "")) {
+                fprintf(stderr, "Failed to mount cgroup/cpu, stop\n");
+		exit(-1);
+	}
+
+
+/*
+        if (mkdir("/sys/fs/cgroup/cpu", 0555) && errno != EEXIST) {
+		fprintf(stderr, "Failed to make /sys/fs/cgroup/cpu directory, stop\n");
+		exit(-1);
+	}
+      if (mount("cgroup", "./sys/fs/cgroup", "cgroup", 0, "all")) {
+                perror("");
+                fprintf(stderr, "Failed to mount cgroup, stop\n");
+		exit(-1);
+	}
+*/       
+
+        if (umount2(put_old, MNT_DETACH)) {
+                fprintf(stderr, "Failed to umount put.old, stop\n");
+                exit(-1);
+        }
 	return 0;
 }
