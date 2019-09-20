@@ -8,9 +8,9 @@
 #include "include/cgroup.h"
 
 
-#define MEMORY "40960000"
+#define MEMORY "819275"
 #define SHARES "1"
-#define PIDS "666"
+#define PIDS "10"
 #define WEIGHT "10"
 #define FD_COUNT 64
 
@@ -77,7 +77,7 @@ static int assigned_memnodes(char* pdir, struct cgrp_control **cgrp) {
                 fprintf(stderr, "opening %s failed: %m\n", path);
                 return -1;
         }
-        if (write(fd, "0", 3) == -1) {
+        if (write(fd, "0", 2) == -1) {
                 fprintf(stderr, "writing to %s failed: %m\n", path);
                 close(fd);
                 return -1; 
@@ -131,10 +131,8 @@ static int cgroups(isolproc_info *config) {
         return 0;
 }
 
-#include <sys/errno.h>
 int cgroup_namespace(isolproc_info* config) {
         if (mount("cgroup_root", "./sys/fs/cgroup", "tmpfs", 0, NULL)) {
-                perror("");
                 fprintf(stderr, "Failed to mount cgroup_root, stop\n");
                 exit(-1);
         }
@@ -171,7 +169,7 @@ int cgroup_namespace(isolproc_info* config) {
 
         if (cgroups(config))
         {
-                fprintf(stderr, "ERROR!");
+                fprintf(stderr, "Can't set cgroup namespace!");
                 exit(-1);
         }
         
