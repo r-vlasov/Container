@@ -79,26 +79,26 @@ static int isolate_process(void *arguments) {
 		exit(-1);
 	}
 
+	// set uts_namespace
+	if (info->nspace.uts) {
+		if (!get_new_hostname(info->hostname, 15)) {
+			if(sethostname(info->hostname, 15)) {
+				fprintf(stderr,"can't sethostname(), stop\n");
+				exit(-1);
+			}
+        	}
+	}
+		
+	// set a new mount namespace
+	if (info->nspace.mnt) {	
+		char mdir[] = "rootfs\0";
+		strcpy(info->root, mdir);
+		mount_namespace(info);
+	}
+
+
 	pid_t root_pid = fork();
 	if (root_pid == 0) {	
-
-
-		// set uts_namespace
-		if (info->nspace.uts) {
-			if (!get_new_hostname(info->hostname, 15)) {
-				if(sethostname(info->hostname, 15)) {
-					fprintf(stderr,"can't sethostname(), stop\n");
-					exit(-1);
-				}
-			}
-		}
-		
-		// set a new mount namespace
-		if (info->nspace.mnt) {	
-			char mdir[] = "rootfs\0";
-			strcpy(info->root, mdir);
-			mount_namespace(info);
-		}
 
 		// set a new pid namespace
 		if (info->nspace.pid) {
@@ -115,6 +115,8 @@ static int isolate_process(void *arguments) {
 	}
 	else {
 		wait(NULL);
+                free_cgroup(info);
+
 	}
 }
 
@@ -123,7 +125,7 @@ int main(int argc, char** argv)
 	isolproc_info* _info = initial_info(argc, argv);
 	open_pipe(_info);
 
-	int _clone_flags = SIGCHLD | CLONE_NEWCGROUP |  set_cloneflags(&(_info->nspace));
+	int _clone_flags = SIGCHLD | CLONE_NEWCGROUP | set_cloneflags(&(_info->nspace));
 
     	pid_t isolproc_id = clone(&isolate_process, (void *) child_stack+STACK_SIZE, _clone_flags, (void*)_info);
     	if(isolproc_id == -1) {

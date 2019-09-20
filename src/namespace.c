@@ -62,13 +62,13 @@ int mount_namespace(isolproc_info* _info){
 	const char* mnt = _info->root;
         
         fprintf(stderr, "=> remounting everything with MS_PRIVATE...");
-        if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL)) {
+        if (mount(NULL, "/", NULL, MS_PRIVATE | MS_REC, NULL)) {
                 fprintf(stderr, "failed! %m\n");
                 exit(-1);
         }
         fprintf(stderr, "remounted.\n");
 
-	if (mount(_info->root, mnt, NULL, MS_BIND, "")) {
+	if (mount(_info->root, mnt, NULL, MS_BIND | MS_REC, NULL)) {
 		fprintf(stderr, "Failed to mount %s at %s: %m, stop\n", _info->root, mnt);
 		exit(-1);
 	}
@@ -78,7 +78,7 @@ int mount_namespace(isolproc_info* _info){
 	}
 
 	if (mkdir(put_old, 0777) && errno != EEXIST) {
-		fprintf(stderr, "Failed to mkdir put_old %s: %m, stop\n", put_old);
+		fprintf(stderr, "Failed to mkdir %s: %m, stop\n", put_old);
 		exit(-1);
 	}
 
@@ -120,18 +120,11 @@ int pid_namespace(isolproc_info* _info) {
 		exit(-1);
 	}
 
-
-/*
-        if (mkdir("/sys/fs/cgroup/cpu", 0555) && errno != EEXIST) {
-		fprintf(stderr, "Failed to make /sys/fs/cgroup/cpu directory, stop\n");
+	if (mount("tmpfs", "./dev", "tmpfs", 0, "")) {
+                fprintf(stderr, "Failed to mount tmpfs, stop\n");
 		exit(-1);
-	}
-      if (mount("cgroup", "./sys/fs/cgroup", "cgroup", 0, "all")) {
-                perror("");
-                fprintf(stderr, "Failed to mount cgroup, stop\n");
-		exit(-1);
-	}
-*/       
+        }
+	
 
         if (umount2(put_old, MNT_DETACH)) {
                 fprintf(stderr, "Failed to umount put.old, stop\n");

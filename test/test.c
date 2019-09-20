@@ -1,18 +1,7 @@
-#include <unistd.h>
+#include <stdio.h>
 
 int main()
 {
-        int a ;
-        for (int i = 0; i < 15; i++)
-        {
-                a = fork();
-                if (!a)
-                        while(1);
-                else
-                        continue;
-        }
-
-        while(1);
+        fprintf(stderr, "hello");
         return 0;
 }
-                

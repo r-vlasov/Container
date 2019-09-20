@@ -8,11 +8,10 @@
 #include "include/cgroup.h"
 
 
-#define MEMORY "819275"
-#define SHARES "1"
-#define PIDS "10"
-#define WEIGHT "10"
-#define FD_COUNT 64
+#define MEMORY "4000000"
+#define SHARES "0"
+#define PIDS "3"
+
 
 
 struct cgrp_setting add_to_tasks = {
@@ -131,7 +130,43 @@ static int cgroups(isolproc_info *config) {
         return 0;
 }
 
+int free_cgroup(isolproc_info* config) {
+        for (struct cgrp_control **cgrp = cgrps; *cgrp; cgrp++) {
+                char dir[64] = {0};
+                char task[64] = {0};
+                int task_fd = 0;
+                if (snprintf(dir, sizeof(dir), "/sys/fs/cgroup/%s/%s", (*cgrp)->control,
+                        config->hostname) == -1 ||
+                    snprintf(task, sizeof(task), "/sys/fs/cgroup/%s/tasks", 
+                        (*cgrp)->control) == -1) {
+                        fprintf(stderr, "snprintf failed: %m\n");
+                        return -1;
+                }
+                if ((task_fd = open(task, O_WRONLY)) == -1) {
+                        fprintf(stderr, "opening %s failed: %m\n", task);
+                        return -1;
+                }
+                if (write(task_fd, "0", 2) == -1) {
+                        fprintf(stderr, "writing to %s failed: %m\n", task);
+                        close(task_fd);
+                        return -1;
+                }
+                close(task_fd);
+                if (rmdir(dir)) {
+                        fprintf(stderr, "rmdir %s failed: %m", dir);
+                        return -1;
+                }
+        }
+        fprintf(stderr, "done.\n");
+        return 0;
+}
+
+
 int cgroup_namespace(isolproc_info* config) {
+        if (!config->nspace.mnt)
+                return 0;
+
+
         if (mount("cgroup_root", "./sys/fs/cgroup", "tmpfs", 0, NULL)) {
                 fprintf(stderr, "Failed to mount cgroup_root, stop\n");
                 exit(-1);
@@ -175,5 +210,3 @@ int cgroup_namespace(isolproc_info* config) {
         
         return 0;
 }
-
-
