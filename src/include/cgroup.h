@@ -8,10 +8,4 @@ struct cgrp_control {
                 char value[256];
         } **settings;
 };
-struct cgrp_setting add_to_tasks = {
-        .name = "tasks",
-        .value = "0"
-};
-
-
 #endif
