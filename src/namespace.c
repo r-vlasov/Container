@@ -24,7 +24,7 @@ static void write_file(char* path, char* line){
 
 
 int get_new_hostname(char* buf, unsigned len){
-	printf("Enter your new hostname(maxlen = 14): ");   
+	printf("> Enter your new hostname(maxlen = 14): ");   
 	scanf("%s", buf);
 	return 0;
 }
@@ -57,41 +57,56 @@ const char put_old[] = ".put_old";
 
 // mounting the new root (CLONE_NEWNS allows child to start in a new mount namespace)
 int mount_namespace(isolproc_info* _info){
-
-
 	const char* mnt = _info->root;
-        
-        fprintf(stderr, "=> remounting everything with MS_PRIVATE...");
+               
+        fprintf(stderr, "> remounting everything with MS_PRIVATE...");
         if (mount(NULL, "/", NULL, MS_PRIVATE | MS_REC, NULL)) {
                 fprintf(stderr, "failed! %m\n");
                 exit(-1);
         }
         fprintf(stderr, "remounted.\n");
-
+        fprintf(stderr, "> mounting %s...", _info->root);
 	if (mount(_info->root, mnt, NULL, MS_BIND | MS_REC, NULL)) {
 		fprintf(stderr, "Failed to mount %s at %s: %m, stop\n", _info->root, mnt);
 		exit(-1);
 	}
-	if (chdir(mnt)) {
+        fprintf(stderr, "success\n");
+        if (chdir(mnt)) {
 		fprintf(stderr, "Failed to chdir to rootfs mounted at %s : %m, stop\n", mnt);
 		exit(-1);
 	}
-
+        
 	if (mkdir(put_old, 0777) && errno != EEXIST) {
 		fprintf(stderr, "Failed to mkdir %s: %m, stop\n", put_old);
 		exit(-1);
 	}
-
+        
+        fprintf(stderr, "> changing root...");
 	if (syscall(SYS_pivot_root, ".", put_old)) {
-		fprintf(stderr, "Failed to mkdir put_old %s: %m, stop\n", put_old);
+		fprintf(stderr, "Failed to change the root %s: %m, stop\n", put_old);
 		exit(-1);
 	}
+        fprintf(stderr, "success\n");
 
 	if (chdir("/")){
 		fprintf(stderr, "Can't change directory to root, stop\n");
 		exit(-1);
 	}
-	
+
+        fprintf(stderr, "> mounting sysfs...");
+ 	if (mount("sysfs", "./sys", "sysfs", 0, "")) {
+                fprintf(stderr, "Failed to mount sysfs, stop\n");
+		exit(-1);
+	}
+        fprintf(stderr, "success\n");
+
+        fprintf(stderr, "> mounting tmpfs...");
+	if (mount("tmpfs", "./dev", "tmpfs", 0, "")) {
+                fprintf(stderr, "Failed to mount tmpfs, stop\n");
+		exit(-1);
+        }
+        fprintf(stderr, "success\n");
+
 	if (!_info->nspace.pid) {
 		if (umount2(put_old, MNT_DETACH)) {
 			fprintf(stderr, "Failed to umount put.old %s: %m, stop\n", put_old);
@@ -109,22 +124,12 @@ int pid_namespace(isolproc_info* _info) {
 		exit(-1);
 	}
 
-             
+        fprintf(stderr, "> mounting proc...");
 	if (mount("proc", "./proc", "proc", 0, "")) {
 		fprintf(stderr, "Failed to mount proc, stop\n");
 		exit(-1);
 	}
- 
- 	if (mount("sysfs", "./sys", "sysfs", 0, "")) {
-                fprintf(stderr, "Failed to mount cgroup/cpu, stop\n");
-		exit(-1);
-	}
-
-	if (mount("tmpfs", "./dev", "tmpfs", 0, "")) {
-                fprintf(stderr, "Failed to mount tmpfs, stop\n");
-		exit(-1);
-        }
-	
+        fprintf(stderr, "success\n");
 
         if (umount2(put_old, MNT_DETACH)) {
                 fprintf(stderr, "Failed to umount put.old, stop\n");

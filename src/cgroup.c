@@ -7,7 +7,7 @@
 #include "include/container.h"
 #include "include/cgroup.h"
 
-
+#define MAX_SIZE        64
 #define MEMORY "4000000"
 #define SHARES "0"
 #define PIDS "3"
@@ -59,7 +59,7 @@ struct cgrp_control *cgrps[] = {
 
 
 /* cat ..\*.mems return a empty line. So we can't assign a new task to the cgroup 
-   as it wiil not have any memory to work with.
+   as it will not have any memory to work with.
 */
 static int assigned_memnodes(char* pdir, struct cgrp_control **cgrp) { 
         if (strcmp((*cgrp)->control, "cpuset\0"))
@@ -86,12 +86,39 @@ static int assigned_memnodes(char* pdir, struct cgrp_control **cgrp) {
 }
 
 
+static void cgroup_root_mount(isolproc_info* config) {
+        if (!config->nspace.mnt)
+                return;
+
+        if (mount("cgroup_root", "./sys/fs/cgroup", "tmpfs", MS_MGC_VAL, NULL)) {
+                fprintf(stderr, "Failed to mount cgroup_root, stop\n");
+                exit(-1);
+        }
+}
+
+static void cgr_subdir_mount(char *d) {
+        char dir[MAX_SIZE] = {0};
+        fprintf(stderr, "mounting %s\n", d);
+        if (snprintf(dir, sizeof(dir), "./sys/fs/cgroup/%s", d) == -1) {
+                fprintf(stderr, "Failed to snprintf %s\n", d);
+                return;
+        }
+        if (mkdir(dir, 0555)) {
+                fprintf(stderr, "Failed to make directory %s, stop\n", dir);
+                exit(-1);
+        }
+        if (mount(d, dir, "cgroup", 0, d)) {
+                fprintf(stderr, "Failed to mount %s, stop\n", d);
+                exit(-1);
+        }
+}
 
 static int cgroups(isolproc_info *config) {
-        fprintf(stderr, "=> setting cgroups...");
+        fprintf(stderr, "=> setting cgroups...\n");
         for (struct cgrp_control **cgrp = cgrps; *cgrp; cgrp++) {
                 char dir[64] = {0};
-                fprintf(stderr, "%s...", (*cgrp)->control);
+                fprintf(stderr, "\t%s...", (*cgrp)->control);  
+                cgr_subdir_mount((*cgrp)->control);    // mounting subdirectory(cpuset, memory, ...)
                 if (snprintf(dir, sizeof(dir), "/sys/fs/cgroup/%s/%s",
                              (*cgrp)->control, config->hostname) == -1) {
                         return -1;
@@ -101,6 +128,7 @@ static int cgroups(isolproc_info *config) {
                         return -1;
                 }
                 
+                // specially for add new tasks   
                 if (assigned_memnodes(dir, cgrp)) {
                         fprintf(stderr, "Failed to assign memory nodes: %m, stop\n");
                         return -1;
@@ -131,6 +159,7 @@ static int cgroups(isolproc_info *config) {
 }
 
 int free_cgroup(isolproc_info* config) {
+        fprintf(stderr, "freeing cgroup resources...");
         for (struct cgrp_control **cgrp = cgrps; *cgrp; cgrp++) {
                 char dir[64] = {0};
                 char task[64] = {0};
@@ -150,7 +179,7 @@ int free_cgroup(isolproc_info* config) {
                         fprintf(stderr, "writing to %s failed: %m\n", task);
                         close(task_fd);
                         return -1;
-                }
+                } 
                 close(task_fd);
                 if (rmdir(dir)) {
                         fprintf(stderr, "rmdir %s failed: %m", dir);
@@ -161,47 +190,9 @@ int free_cgroup(isolproc_info* config) {
         return 0;
 }
 
-
 int cgroup_namespace(isolproc_info* config) {
-        if (!config->nspace.mnt)
-                return 0;
-
-
-        if (mount("cgroup_root", "./sys/fs/cgroup", "tmpfs", 0, NULL)) {
-                fprintf(stderr, "Failed to mount cgroup_root, stop\n");
-                exit(-1);
-        }
-
-        /* mounting subdirectories to core cgroup */
-        if (mkdir("./sys/fs/cgroup/cpuset", 0555)) {
-                fprintf(stderr, "Failed to make directory ./sys/fs/cgroup/cpuset, stop\n");
-                exit(-1);
-        }
-        if (mount("cpuset", "./sys/fs/cgroup/cpuset", "cgroup", MS_MGC_VAL, "cpuset")) {
-                fprintf(stderr, "Failed to mount cgroup/cpuset, stop\n");
-                exit(-1);
-        }
         
-        
-        if (mkdir("./sys/fs/cgroup/memory", 0555)) {
-                fprintf(stderr, "Failed to make directory ./sys/fs/cgroup/memory, stop\n");
-                exit(-1);
-        }
-        if (mount("memory", "./sys/fs/cgroup/memory", "cgroup", MS_MGC_VAL, "memory")) {
-                fprintf(stderr, "Failed to mount cgroup/memory, stop\n");
-                exit(-1);
-        }
-        
-
-        if (mkdir("./sys/fs/cgroup/pids", 0555)) {
-                fprintf(stderr, "Failed to make directory ./sys/fs/cgroup/pids, stop\n");
-                exit(-1);
-        }
-        if (mount("pids", "./sys/fs/cgroup/pids", "cgroup", MS_MGC_VAL, "pids")) {
-                fprintf(stderr, "Failed to mount cgroup/cpuset, stop\n");
-                exit(-1);
-        }
-
+        cgroup_root_mount(config);
         if (cgroups(config))
         {
                 fprintf(stderr, "Can't set cgroup namespace!");

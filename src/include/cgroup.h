@@ -8,4 +8,7 @@ struct cgrp_control {
                 char value[256];
         } **settings;
 };
+
+int cgroup_namespace(isolproc_info* config);
+int free_cgroup(isolproc_info* config); 
 #endif
