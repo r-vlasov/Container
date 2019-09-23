@@ -14,6 +14,12 @@ typedef struct namespaces{
 	int cgroup ;
 } namespace_info;
 
+typedef struct cgroup{
+        char mem[8] ;
+        char cpus[8]  ;
+        char pids[8] ;
+} cgroup_info;
+
 typedef struct isolproc_info{
 	int 		argc;
 	char** 		argv;
@@ -25,6 +31,7 @@ typedef struct isolproc_info{
 
 	int 		pid;
 	namespace_info  nspace;
+        cgroup_info     cgrp;
 } isolproc_info;
 
 

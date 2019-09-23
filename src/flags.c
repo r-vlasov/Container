@@ -9,7 +9,7 @@
 
 
 
-static int set_flag(isolproc_info* info, char* arg) {
+static int set_nspace(isolproc_info* info, char* arg) {
 	namespace_info* bitmask = &(info->nspace);
 	if (arg[0] == '-') {
 		if (strlen(arg) == 2) {
@@ -36,6 +36,25 @@ static int set_flag(isolproc_info* info, char* arg) {
 	return 0;
 }
 
+static int set_cgroup(isolproc_info* info, char* arg) {
+        cgroup_info* cgrinfo = &(info->cgrp);
+        
+        if (arg[0] == 'c' && arg[1] == 'p' && arg[2] == 'u' && arg[3] == '-') {
+                strcpy(cgrinfo->cpus, arg+4);
+                return 1;
+        }
+        if (arg[0] == 'p' && arg[1] == 'i' && arg[2] == 'd' && arg[3] == '-') {
+                strcpy(cgrinfo->pids, arg+4);
+                return 1;
+        }
+        if (arg[0] == 'm' && arg[1] == 'e' && arg[2] == 'm' && arg[3] == '-') {
+                strcpy(cgrinfo->mem, arg+4);
+                return 1;
+        }
+        return 0;
+        
+}
+
 int set_cloneflags(namespace_info* bitmask){
 
 	int fl = 0;
@@ -57,10 +76,14 @@ isolproc_info* initial_info(int argc, char** argv) {
 	memset(a, 0, sizeof(isolproc_info));
 
 	int i = 1;
-	while (set_flag(a, argv[i])){
+	while (set_nspace(a, argv[i])){
 		++i;
 	}
-	
+
+        while (set_cgroup(a, argv[i])){
+                ++i;
+        }
+
 	a->argc = argc - i;
 	a->argv = argv + i;
 	return a;

@@ -10,9 +10,9 @@
 #include "include/cgroup.h"
 
 #define MAX_SIZE        64
-#define MEMORY "4000000"
-#define SHARES "0"
-#define PIDS "10"
+#define DEFAULT_MEMORY "4000000"
+#define DEFAULT_CPUS "0"
+#define DEFAULT_PIDS "16"
 
 
 
@@ -28,7 +28,7 @@ struct cgrp_control *cgrps[] = {
                 .settings = (struct cgrp_setting *[]) {
                         & (struct cgrp_setting) {
                                 .name = "memory.limit_in_bytes",
-                                .value = MEMORY
+                                .value = DEFAULT_MEMORY
                         },
                         &add_to_tasks,
                         NULL
@@ -39,7 +39,7 @@ struct cgrp_control *cgrps[] = {
                 .settings = (struct cgrp_setting *[]) {
                         & (struct cgrp_setting) {
                                 .name = "cpuset.cpus",
-                                .value = SHARES
+                                .value = DEFAULT_CPUS
                         },
                         &add_to_tasks,
                         NULL
@@ -50,7 +50,7 @@ struct cgrp_control *cgrps[] = {
                 .settings = (struct cgrp_setting *[]) {
                         & (struct cgrp_setting) {
                                 .name = "pids.max",
-                                .value = PIDS
+                                .value = DEFAULT_PIDS
                         },
                         &add_to_tasks,
                         NULL
@@ -67,7 +67,7 @@ static int assigned_memnodes(char* pdir, struct cgrp_control **cgrp) {
         if (strcmp((*cgrp)->control, "cpuset\0"))
                 return 0;
 
-        char path[64] = {0};
+        char path[MAX_SIZE] = {0};
         if (snprintf(path, sizeof(path), "%s/%s.mems", pdir, (*cgrp)->control) == -1) {
                 return -1;
         }
@@ -78,7 +78,7 @@ static int assigned_memnodes(char* pdir, struct cgrp_control **cgrp) {
                 fprintf(stderr, "opening %s failed: %m\n", path);
                 return -1;
         }
-        if (write(fd, "0", 2) == -1) {
+        if (write(fd, "0", 3) == -1) {
                 fprintf(stderr, "writing to %s failed: %m\n", path);
                 close(fd);
                 return -1; 
@@ -115,12 +115,21 @@ static void cgr_subdir_mount(char *d) {
         }
 }
 
+static void cgrp_fill_values(cgroup_info* info, int i) {
+       double* s = (double*) info;
+       if (s[i]) {
+               strcpy(((*(cgrps[i]->settings))->value), s + i);
+       }
+}
+
 static int cgroups(isolproc_info *config) {
         fprintf(stderr, "=> setting cgroups...\n");
-        for (struct cgrp_control **cgrp = cgrps; *cgrp; cgrp++) {
-                char dir[64] = {0};
+        int counter = 0; // for cgrp_fill_values;
+
+        for (struct cgrp_control **cgrp = cgrps; *cgrp; ++cgrp, ++counter) {
+                char dir[MAX_SIZE] = {0};
                 fprintf(stderr, "\t%s...", (*cgrp)->control);  
-                cgr_subdir_mount((*cgrp)->control);    // mounting subdirectory(cpuset, memory, ...)
+                cgr_subdir_mount((*cgrp)->control);     // mounting subdirectory(cpuset, memory, ...)
                 if (snprintf(dir, sizeof(dir), "/sys/fs/cgroup/%s/%s",
                              (*cgrp)->control, config->hostname) == -1) {
                         return -1;
@@ -129,6 +138,7 @@ static int cgroups(isolproc_info *config) {
                         fprintf(stderr, "mkdir %s failed: %m\n", dir);
                         return -1;
                 }
+                cgrp_fill_values(&(config->cgrp), counter);               // if we uses cpu, memory, pids cgroup settings
                 
                 // specially for add new tasks   
                 if (assigned_memnodes(dir, cgrp)) {
@@ -137,7 +147,7 @@ static int cgroups(isolproc_info *config) {
                 }
 
                 for (struct cgrp_setting **setting = (*cgrp)->settings; *setting; setting++) {
-                        char path[64] = {0};
+                        char path[MAX_SIZE] = {0};
                         int fd = 0;
                         if (snprintf(path, sizeof(path), "%s/%s", dir,
                                      (*setting)->name) == -1) {
@@ -154,8 +164,8 @@ static int cgroups(isolproc_info *config) {
                                 return -1;
                         }
                         close(fd);
-                }
-        }
+                } // for
+        } // for
         fprintf(stderr, "done.\n");
         return 0;
 }
