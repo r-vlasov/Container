@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/mount.h>
+#include <dirent.h>
+#include <signal.h>
 #include <fcntl.h>
 #include "include/container.h"
 #include "include/cgroup.h"
@@ -10,7 +12,7 @@
 #define MAX_SIZE        64
 #define MEMORY "4000000"
 #define SHARES "0"
-#define PIDS "3"
+#define PIDS "10"
 
 
 
@@ -158,7 +160,49 @@ static int cgroups(isolproc_info *config) {
         return 0;
 }
 
+/* When our process sh(2) was ended his children attaching to pid=1 */
+/* So we need to close all process at this container */
+/* Because we can't clear cgroup directory:)))) */
+static int isnumber(char* str) {
+        int i;
+        for (i = 0; str[i] >= '0' && str[i] <= '9'; i++) { }
+        if (!str[i])
+                return 1;
+        return 0;
+}
+
+static int select_proc(isolproc_info* info) {
+        if (info->nspace.pid == 0)
+                return 0;
+        
+        DIR *dir;
+        struct dirent *ent;
+        int procnum;
+        if ((dir = opendir ("/proc")) != NULL) {
+                while ((ent = readdir(dir)) != NULL) {
+                        if (isnumber(ent->d_name)) {        
+                                procnum = atoi(ent->d_name);
+                                if (procnum != 1) {
+                                        char buf[64] = {0};
+                                        snprintf(buf, sizeof(buf), "kill -9 %s", ent->d_name);
+                                        system(buf);
+                                }
+                        }
+                        continue;
+                } // while
+                return 0;
+        }
+        else {
+                fprintf(stderr, "Can't open directory /proc, stop\n");
+                return 1;
+        }
+}
+
 int free_cgroup(isolproc_info* config) {
+        if (select_proc(config)) {
+                fprintf(stderr, "Selecting /proc error, stop\n");
+                exit(-1);
+        }
         fprintf(stderr, "freeing cgroup resources...");
         for (struct cgrp_control **cgrp = cgrps; *cgrp; cgrp++) {
                 char dir[64] = {0};
@@ -185,7 +229,7 @@ int free_cgroup(isolproc_info* config) {
                         fprintf(stderr, "rmdir %s failed: %m", dir);
                         return -1;
                 }
-        }
+        } // for
         fprintf(stderr, "done.\n");
         return 0;
 }

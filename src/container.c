@@ -92,7 +92,7 @@ static int isolate_process(void *arguments) {
 	pid_t root_pid = fork();
 	if (root_pid == 0) {	
 
-		// set a new mount namespace
+                // set a new mount namespace
         	if (info->nspace.mnt) {
 	         	char mdir[] = "rootfs\0";
 	        	strcpy(info->root, mdir);
@@ -120,9 +120,10 @@ static int isolate_process(void *arguments) {
                         free_cgroup(info);
                         return 0;
                 }
-                else
+                else {
                 	fprintf(stderr, "Signal #%d was sended by child\n", WSTOPSIG(status));
-
+                        free_cgroup(info);
+                }
 	}
 }
 

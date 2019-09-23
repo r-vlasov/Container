@@ -85,7 +85,7 @@ int mount_namespace(isolproc_info* _info){
 	if (syscall(SYS_pivot_root, ".", put_old)) {
 		fprintf(stderr, "Failed to change the root %s: %m, stop\n", put_old);
 		exit(-1);
-	}
+        }
         fprintf(stderr, "success\n");
 
 	if (chdir("/")){
@@ -93,19 +93,46 @@ int mount_namespace(isolproc_info* _info){
 		exit(-1);
 	}
 
+        /*mounting sys*/
         fprintf(stderr, "> mounting sysfs...");
  	if (mount("sysfs", "./sys", "sysfs", 0, "")) {
                 fprintf(stderr, "Failed to mount sysfs, stop\n");
 		exit(-1);
 	}
         fprintf(stderr, "success\n");
-
+        
+        /*mounting /dev*/
         fprintf(stderr, "> mounting tmpfs...");
 	if (mount("tmpfs", "./dev", "tmpfs", 0, "")) {
                 fprintf(stderr, "Failed to mount tmpfs, stop\n");
 		exit(-1);
         }
         fprintf(stderr, "success\n");
+
+        /*mounting dev/pts*/ 
+        if (mkdir("./dev/pts", 0555) && errno != EEXIST) {
+		fprintf(stderr, "Failed to make /dev/pts directory, stop\n");
+		exit(-1);
+	}
+        fprintf(stderr, "> mounting devpts...");
+	if (mount("tmpfs", "./dev/pts", "devpts", 0, "newinstance,ptmxmode=0666,mode=620,gid=5")) {
+                fprintf(stderr, "Failed to mount devpts, stop\n");
+		exit(-1);
+        }
+        fprintf(stderr, "success\n");
+
+        /*mounting shm*/ 
+        if (mkdir("./dev/shm", 0555) && errno != EEXIST) {
+		fprintf(stderr, "Failed to make /dev/shm directory, stop\n");
+		exit(-1);
+	}
+        fprintf(stderr, "> mounting shm...");
+	if (mount("tmpfs", "./dev/shm", "tmpfs", 0, "mode=1777,size=65536k")) {
+                fprintf(stderr, "Failed to mount devpts, stop\n");
+		exit(-1);
+        }
+        fprintf(stderr, "success\n");
+
 
 	if (!_info->nspace.pid) {
 		if (umount2(put_old, MNT_DETACH)) {
@@ -119,6 +146,7 @@ int mount_namespace(isolproc_info* _info){
 
 int pid_namespace(isolproc_info* _info) {
 
+        /*mounting proc*/
 	if (mkdir("./proc", 0555) && errno != EEXIST) {
 		fprintf(stderr, "Failed to make /proc directory, stop\n");
 		exit(-1);
