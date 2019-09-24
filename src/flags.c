@@ -22,8 +22,6 @@ static int set_nspace(isolproc_info* info, char* arg) {
 						return 1;
 				case 'i': 	bitmask->ipc = 1;
 						return 1;
-				case 'u': 	bitmask->usr = 1;
-						return 1;
 				case 'U':	bitmask->uts = 1;
 						return 1;
 				default:
@@ -62,8 +60,6 @@ int set_cloneflags(namespace_info* bitmask){
 		fl = CLONE_NEWNS;
 	if (bitmask->pid == 1)
 		fl |= CLONE_NEWPID;
-	if (bitmask->usr == 1)
-		fl |= CLONE_NEWUSER;
 	if (bitmask->uts == 1)
 		fl |= CLONE_NEWUTS;
 

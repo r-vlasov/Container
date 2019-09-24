@@ -11,7 +11,7 @@
 #include "include/cgroup.h"
 
 #define MAX_SIZE        264
-#define DEFAULT_MEMORY "4000000"
+#define DEFAULT_MEMORY "40000000"
 #define DEFAULT_CPUS "0-3"
 #define DEFAULT_PIDS "16"
 
@@ -64,7 +64,7 @@ struct cgrp_control *cgrps[] = {
 /* cat ..\*.mems return a empty line. So we can't assign a new task to the cgroup 
    as it will not have any memory to work with.
 */
-static int assigned_memnodes(const char* pdir, struct cgrp_control **cgrp) { 
+static int assigned_memnodes(char* pdir, struct cgrp_control **cgrp) { 
         if (strcmp((*cgrp)->control, "cpuset\0"))
                 return 0;
 
@@ -73,17 +73,18 @@ static int assigned_memnodes(const char* pdir, struct cgrp_control **cgrp) {
                 return -1;
         }
         
-     
+ 
         int fd; // file descr. special for /cgroup/*.mems
         if ((fd = open(path, O_WRONLY)) == -1) {
                 fprintf(stderr, "opening %s failed: %m\n", path);
                 return -1;
         }
-        if (write(fd, "0", 3) == -1) {
+        if (write(fd, "0", 2) == -1) {
                 fprintf(stderr, "writing to %s failed: %m\n", path);
                 close(fd);
                 return -1; 
         }
+
         close(fd);
         return 0;
 }
@@ -118,10 +119,10 @@ static void cgr_subdir_mount(const char *d) {
 
 
 /* there is a little hack with packiging the data in C program memory */
-static void cgrp_fill_values(const cgroup_info* info, const int i) {
+static void cgrp_fill_values(const cgroup_info* info, int i) {
        double* s = (double*) info;
        if (s[i]) {
-                strcpy(((*(cgrps[i]->settings))->value),(const char*) s + i);
+                strcpy(((*(cgrps[i]->settings))->value),(const char*) (s + i));
        }
 }
 
@@ -182,6 +183,25 @@ static int isnumber(const char* str) {
         return 0;
 }
 
+
+static int killprocess(const char* str) {
+        if (str[0] != '1' && !str[1]) {
+                char buf[MAX_SIZE] = {0};
+                sprintf(buf, "kill -9 %s", str);                               
+                if (system(buf) == -1) {
+                        fprintf (stderr, "Can't exit from the process %s\n", str);
+                        if (system("ps aux") == -1) {
+                                fprintf(stderr, "System crashed\n");
+                                exit(-1);
+                        }
+                        return -1;
+                }
+                return 0;
+        }
+        return 0;
+}
+
+
 /* When our process sh(2) was ended his children attaching to pid=1 */
 /* So we need to close all process at this container */
 /* Because we can't clear cgroup directory:)))) */
@@ -195,12 +215,9 @@ static int select_proc(const isolproc_info* info) {
         if ((dir = opendir ("/proc")) != NULL) {
                 while ((ent = readdir(dir)) != NULL) {
                         if (isnumber(ent->d_name)) {        
-                                procnum = atoi(ent->d_name);
-                                if (procnum != 1) {
-                                        char buf[MAX_SIZE] = {0};
-                                        sprintf(buf, "kill -9 %s", ent->d_name);
-                                        system(buf);
-                                }
+                                if (killprocess(ent->d_name)) 
+                                        return -1;
+                                continue;
                         }
                         continue;
                 } // while
@@ -208,16 +225,17 @@ static int select_proc(const isolproc_info* info) {
         }
         else {
                 fprintf(stderr, "Can't open directory /proc, stop\n");
-                return 1;
+                return -1;
         }
 }
 
 int free_cgroup(const isolproc_info* config) {
+        fprintf(stderr, "freeing cgroup resources...");
         if (select_proc(config)) {
                 fprintf(stderr, "Selecting /proc error, stop\n");
                 exit(-1);
         }
-        fprintf(stderr, "freeing cgroup resources...");
+        
         for (struct cgrp_control **cgrp = cgrps; *cgrp; cgrp++) {
                 char dir[MAX_SIZE] = {0};
                 char task[MAX_SIZE] = {0};

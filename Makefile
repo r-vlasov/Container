@@ -6,4 +6,4 @@ EXECUTABLE = ./bin/container.exe
 
 run:	$(OBJ_FILES)
 	$(MAKE) run -C $(SRC)
-	$(GCC) $^ -o $(EXECUTABLE)
+	$(GCC) $^ -O -o $(EXECUTABLE)

@@ -5,7 +5,7 @@ OBJPATH = ../obj/$@
 
 
 %.o: %.c
-	$(GCC) -c $< -o  $(OBJPATH)
+	$(GCC) -c $< -O -o  $(OBJPATH)
 
 
 run: $(OBJFILES)
