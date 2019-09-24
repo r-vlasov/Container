@@ -9,6 +9,6 @@ struct cgrp_control {
         } **settings;
 };
 
-int cgroup_namespace(isolproc_info* config);
-int free_cgroup(isolproc_info* config); 
+int cgroup_namespace(const isolproc_info* config);
+int free_cgroup(const isolproc_info* config); 
 #endif

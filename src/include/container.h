@@ -35,6 +35,4 @@ typedef struct isolproc_info{
 } isolproc_info;
 
 
-
-int cgroup_namespace(isolproc_info *config);
 #endif

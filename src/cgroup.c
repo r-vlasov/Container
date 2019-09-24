@@ -5,13 +5,14 @@
 #include <sys/mount.h>
 #include <dirent.h>
 #include <signal.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include "include/container.h"
 #include "include/cgroup.h"
 
-#define MAX_SIZE        64
+#define MAX_SIZE        264
 #define DEFAULT_MEMORY "4000000"
-#define DEFAULT_CPUS "0"
+#define DEFAULT_CPUS "0-3"
 #define DEFAULT_PIDS "16"
 
 
@@ -63,7 +64,7 @@ struct cgrp_control *cgrps[] = {
 /* cat ..\*.mems return a empty line. So we can't assign a new task to the cgroup 
    as it will not have any memory to work with.
 */
-static int assigned_memnodes(char* pdir, struct cgrp_control **cgrp) { 
+static int assigned_memnodes(const char* pdir, struct cgrp_control **cgrp) { 
         if (strcmp((*cgrp)->control, "cpuset\0"))
                 return 0;
 
@@ -88,7 +89,7 @@ static int assigned_memnodes(char* pdir, struct cgrp_control **cgrp) {
 }
 
 
-static void cgroup_root_mount(isolproc_info* config) {
+static void cgroup_root_mount(const isolproc_info* config) {
         if (!config->nspace.mnt)
                 return;
 
@@ -98,7 +99,7 @@ static void cgroup_root_mount(isolproc_info* config) {
         }
 }
 
-static void cgr_subdir_mount(char *d) {
+static void cgr_subdir_mount(const char *d) {
         char dir[MAX_SIZE] = {0};
         fprintf(stderr, "mounting %s\n", d);
         if (snprintf(dir, sizeof(dir), "./sys/fs/cgroup/%s", d) == -1) {
@@ -115,14 +116,16 @@ static void cgr_subdir_mount(char *d) {
         }
 }
 
-static void cgrp_fill_values(cgroup_info* info, int i) {
+
+/* there is a little hack with packiging the data in C program memory */
+static void cgrp_fill_values(const cgroup_info* info, const int i) {
        double* s = (double*) info;
        if (s[i]) {
-               strcpy(((*(cgrps[i]->settings))->value), s + i);
+                strcpy(((*(cgrps[i]->settings))->value),(const char*) s + i);
        }
 }
 
-static int cgroups(isolproc_info *config) {
+static int cgroups(const isolproc_info *config) {
         fprintf(stderr, "=> setting cgroups...\n");
         int counter = 0; // for cgrp_fill_values;
 
@@ -170,10 +173,8 @@ static int cgroups(isolproc_info *config) {
         return 0;
 }
 
-/* When our process sh(2) was ended his children attaching to pid=1 */
-/* So we need to close all process at this container */
-/* Because we can't clear cgroup directory:)))) */
-static int isnumber(char* str) {
+
+static int isnumber(const char* str) {
         int i;
         for (i = 0; str[i] >= '0' && str[i] <= '9'; i++) { }
         if (!str[i])
@@ -181,7 +182,10 @@ static int isnumber(char* str) {
         return 0;
 }
 
-static int select_proc(isolproc_info* info) {
+/* When our process sh(2) was ended his children attaching to pid=1 */
+/* So we need to close all process at this container */
+/* Because we can't clear cgroup directory:)))) */
+static int select_proc(const isolproc_info* info) {
         if (info->nspace.pid == 0)
                 return 0;
         
@@ -193,8 +197,8 @@ static int select_proc(isolproc_info* info) {
                         if (isnumber(ent->d_name)) {        
                                 procnum = atoi(ent->d_name);
                                 if (procnum != 1) {
-                                        char buf[64] = {0};
-                                        snprintf(buf, sizeof(buf), "kill -9 %s", ent->d_name);
+                                        char buf[MAX_SIZE] = {0};
+                                        sprintf(buf, "kill -9 %s", ent->d_name);
                                         system(buf);
                                 }
                         }
@@ -208,15 +212,15 @@ static int select_proc(isolproc_info* info) {
         }
 }
 
-int free_cgroup(isolproc_info* config) {
+int free_cgroup(const isolproc_info* config) {
         if (select_proc(config)) {
                 fprintf(stderr, "Selecting /proc error, stop\n");
                 exit(-1);
         }
         fprintf(stderr, "freeing cgroup resources...");
         for (struct cgrp_control **cgrp = cgrps; *cgrp; cgrp++) {
-                char dir[64] = {0};
-                char task[64] = {0};
+                char dir[MAX_SIZE] = {0};
+                char task[MAX_SIZE] = {0};
                 int task_fd = 0;
                 if (snprintf(dir, sizeof(dir), "/sys/fs/cgroup/%s/%s", (*cgrp)->control,
                         config->hostname) == -1 ||
@@ -244,7 +248,7 @@ int free_cgroup(isolproc_info* config) {
         return 0;
 }
 
-int cgroup_namespace(isolproc_info* config) {
+int cgroup_namespace(const isolproc_info* config) {
         
         cgroup_root_mount(config);
         if (cgroups(config))
