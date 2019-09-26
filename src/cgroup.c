@@ -10,10 +10,10 @@
 #include "include/container.h"
 #include "include/cgroup.h"
 
-#define MAX_SIZE        264
-#define DEFAULT_MEMORY "40000000"
+#define MAX_SIZE        64
+#define DEFAULT_MEMORY "256M"
 #define DEFAULT_CPUS "0-3"
-#define DEFAULT_PIDS "16"
+#define DEFAULT_PIDS "8"
 
 
 
@@ -120,10 +120,11 @@ static void cgr_subdir_mount(const char *d) {
 
 /* there is a little hack with packiging the data in C program memory */
 static void cgrp_fill_values(const cgroup_info* info, int i) {
-       double* s = (double*) info;
-       if (s[i]) {
+        double* s = (double*) info;
+        
+        if (s[i]) {
                 strcpy(((*(cgrps[i]->settings))->value),(const char*) (s + i));
-       }
+        }
 }
 
 static int cgroups(const isolproc_info *config) {
@@ -142,7 +143,7 @@ static int cgroups(const isolproc_info *config) {
                         fprintf(stderr, "mkdir %s failed: %m\n", dir);
                         return -1;
                 }
-                cgrp_fill_values(&(config->cgrp), counter);               // if we uses cpu, memory, pids cgroup settings
+                cgrp_fill_values(&(config->cgrp), counter); //if we uses cpu, memory, pids cgroup subsystems
                 
                 // specially for add new tasks   
                 if (assigned_memnodes(dir, cgrp)) {
@@ -202,20 +203,22 @@ static int killprocess(const char* str) {
 }
 
 
+
+
 /* When our process sh(2) was ended his children attaching to pid=1 */
 /* So we need to close all process at this container */
 /* Because we can't clear cgroup directory:)))) */
+/* It's a test version :D */
 static int select_proc(const isolproc_info* info) {
         if (info->nspace.pid == 0)
                 return 0;
-        
         DIR *dir;
         struct dirent *ent;
         int procnum;
         if ((dir = opendir ("/proc")) != NULL) {
                 while ((ent = readdir(dir)) != NULL) {
                         if (isnumber(ent->d_name)) {        
-                                if (killprocess(ent->d_name)) 
+                                if (killprocess(ent->d_name))
                                         return -1;
                                 continue;
                         }
@@ -229,14 +232,40 @@ static int select_proc(const isolproc_info* info) {
         }
 }
 
+
+/* Terminating background processing */
+static int terminate_bg_procs(int procs) {
+        char cmd[MAX_SIZE] = {0};
+        for (int i = 0; i < procs; ++i) {
+                snprintf(cmd, sizeof(cmd), "kill -9 %d", i);
+                if (system(cmd) == -1) {
+                        fprintf (stderr, "Can't exit from the process \n");
+                        if (system("ps aux") == -1) {
+                                fprintf(stderr, "System crashed\n");
+                                exit(-1);
+                        }
+                        return -1;
+                }
+        }
+        return 0;
+}
+
+
+
 int free_cgroup(const isolproc_info* config) {
         fprintf(stderr, "freeing cgroup resources...");
         if (select_proc(config)) {
                 fprintf(stderr, "Selecting /proc error, stop\n");
                 exit(-1);
         }
-        
-        for (struct cgrp_control **cgrp = cgrps; *cgrp; cgrp++) {
+           
+        // 2 - is a index of "pids" in cgrp structure 
+        // there is a bug, because parent pids can't see the child pid:* arg
+        if (terminate_bg_procs(8)) {
+                fprintf(stderr, "Failed to terminate background processes, stop\n");
+                exit(-1);
+        }
+        for (struct cgrp_control **cgrp = cgrps; *cgrp; ++cgrp) {
                 char dir[MAX_SIZE] = {0};
                 char task[MAX_SIZE] = {0};
                 int task_fd = 0;

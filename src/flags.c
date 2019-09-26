@@ -34,10 +34,39 @@ static int set_nspace(isolproc_info* info, char* arg) {
 	return 0;
 }
 
+const static char *cgroup_params[] = {
+	"mem:",
+	"cpu:",
+	"pid:"
+};
+
+const static int cgroup_params_number = 3;
+
+
+/* 
+ * compare_prefix(str1, str2) - is the function that return 0 when
+ * str1 is prefix of str2 and any char without 0 when it isn't prefix
+ */    
+static int compare_prefix(const char* str1, const char* str2) {
+        int i;
+        for (i = 0; str1[i] == str2[i] && str1[i] != '\0'; ++i);
+        if (str1[i] == '\0')
+                return 0;
+        return str1[i] - str2[i];
+}
+
 static int set_cgroup(isolproc_info* info, char* arg) {
         cgroup_info* cgrinfo = &(info->cgrp);
         
-        if (arg[0] == 'c' && arg[1] == 'p' && arg[2] == 'u' && arg[3] == '-') {
+        for (int i = 0; i < cgroup_params_number; ++i) {
+                if (!compare_prefix(cgroup_params[i], arg)) {
+                        // there will be the hack
+                        strcpy(cgrinfo->mem + i * 8, arg + 4);
+                        return 1;   
+                }
+        }
+                 
+       /* if (arg[0] == 'c' && arg[1] == 'p' && arg[2] == 'u' && arg[3] == '-') {
                 strcpy(cgrinfo->cpus, arg+4);
                 return 1;
         }
@@ -49,7 +78,7 @@ static int set_cgroup(isolproc_info* info, char* arg) {
                 strcpy(cgrinfo->mem, arg+4);
                 return 1;
         }
-        return 0;
+ */       return 0;
         
 }
 
